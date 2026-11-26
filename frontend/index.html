@@ -1,1 +1,222 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Load Sentinel</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            margin: 0;
+            color: #172554;
+        }
+
+        header {
+            background: #071b33;
+            color: white;
+            padding: 22px;
+        }
+
+        main {
+            max-width: 1000px;
+            margin: 25px auto;
+            padding: 15px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px #0001;
+        }
+
+        button {
+            background: #0878d1;
+            color: white;
+            padding: 10px 18px;
+            border: 0;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        input {
+            margin: 12px 0;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+        }
+
+        .stat {
+            background: #eaf6ff;
+            padding: 18px;
+            border-radius: 8px;
+        }
+
+        .number {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background: #edf4fb;
+        }
+
+        #message {
+            margin-top: 12px;
+            overflow-wrap: anywhere;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+<header>
+    <h1>⚡ Load Sentinel</h1>
+    <p>Electricity Load Anomaly Detection System</p>
+</header>
+
+<main>
+    <section class="card">
+        <h2>Upload Electricity Data</h2>
+        <p>Upload a CSV with a timestamp in the first column and meter readings in the remaining columns.</p>
+
+        <input type="file" id="csvFile" accept=".csv">
+        <br>
+        <button onclick="analyzeFile()">Analyze CSV</button>
+        <p id="message">Select a CSV file to begin.</p>
+    </section>
+
+    <section class="stats">
+        <div class="stat">
+            <p>Total Readings</p>
+            <div class="number" id="totalReadings">0</div>
+        </div>
+
+        <div class="stat">
+            <p>Detected Anomalies</p>
+            <div class="number" id="anomalyCount">0</div>
+        </div>
+
+        <div class="stat">
+            <p>Estimated Extra Cost (₹)</p>
+            <div class="number" id="extraCost">0.00</div>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Detected Anomalies</h2>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Meter</th>
+                        <th>Reading (kW)</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="results">
+                    <tr>
+                        <td colspan="4">No analysis performed yet.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<script>
+async function analyzeFile() {
+    const fileInput = document.getElementById("csvFile");
+    const message = document.getElementById("message");
+    const results = document.getElementById("results");
+
+    if (!fileInput.files.length) {
+        message.textContent = "Please select a CSV file first.";
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+
+    message.textContent = "Analyzing file...";
+    results.innerHTML = "";
+
+    try {
+        const response = await fetch("http://127.0.0.1:5000/analyze", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Analysis failed");
+        }
+
+        document.getElementById("totalReadings").textContent =
+            data.total_readings;
+
+        document.getElementById("anomalyCount").textContent =
+            data.anomaly_count;
+
+        let extraCost = 0;
+
+        if (data.anomalies.length === 0) {
+            results.innerHTML =
+                '<tr><td colspan="4">No anomalies detected.</td></tr>';
+        } else {
+            data.anomalies.forEach(item => {
+                const row = document.createElement("tr");
+
+                [
+                    item.timestamp,
+                    item.meter,
+                    item.reading.toFixed(2),
+                    item.status
+                ].forEach(value => {
+                    const cell = document.createElement("td");
+                    cell.textContent = value;
+                    row.appendChild(cell);
+                });
+
+                results.appendChild(row);
+            });
+        }
+
+        document.getElementById("extraCost").textContent =
+            extraCost.toFixed(2);
+
+        message.textContent = data.message;
+    } catch (error) {
+        message.textContent =
+            "Could not connect to the backend. " + error.message;
+    }
+}
+</script>
+</body>
+</html>
+
